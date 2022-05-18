@@ -1,0 +1,380 @@
+strategy("Candle + P.SAR + EMA + MACD + RSI", shorttitle= "Strategy - 4", overlay=true, initial_capital = 10000)
+
+i_startTime = input(defval = timestamp("06 Oct 2021 18:00 +0000"), title = "Start Time", type = input.time)																
+i_endTime = input(defval = timestamp("13 Oct 2021 23:45 +0000"), title = "End Time", type = input.time)																														
+
+time_dtr = time >= i_startTime and time <= i_endTime
+C_DownTrend = true
+C_UpTrend = true	
+
+	
+C_Len = input(title="EMA depth for Body Average", type=input.integer, defval=14, minval=1, maxval=2500, step=1) // ema depth for bodyAvg
+C_ShadowPercent = input(title="Size of shadows", type=input.float, defval=5.0, minval=0.1, maxval=2500, step=0.1) // size of shadows
+C_ShadowEqualsPercent = 100.0
+C_DojiBodyPercent = 5.0
+C_Factor = 2.0 // shows the number of times the shadow dominates the candlestick body
+
+C_BodyHi = max(close, open)
+C_BodyLo = min(close, open)
+C_Body = C_BodyHi - C_BodyLo
+C_BodyAvg = ema(C_Body, C_Len)
+C_SmallBody = C_Body < C_BodyAvg
+C_LongBody = C_Body > C_BodyAvg
+C_UpShadow = high - C_BodyHi
+C_DnShadow = C_BodyLo - low
+C_HasUpShadow = C_UpShadow > C_ShadowPercent / 100 * C_Body
+C_HasDnShadow = C_DnShadow > C_ShadowPercent / 100 * C_Body
+C_WhiteBody = open < close
+C_BlackBody = open > close
+C_Range = high-low
+C_IsInsideBar = C_BodyHi[1] > C_BodyHi and C_BodyLo[1] < C_BodyLo
+C_BodyMiddle = C_Body / 2 + C_BodyLo
+C_ShadowEquals = C_UpShadow == C_DnShadow or (abs(C_UpShadow - C_DnShadow) / C_DnShadow * 100) < C_ShadowEqualsPercent and (abs(C_DnShadow - C_UpShadow) / C_UpShadow * 100) < C_ShadowEqualsPercent
+C_IsDojiBody = C_Range > 0 and C_Body <= C_Range * C_DojiBodyPercent / 100
+C_Doji = C_IsDojiBody and C_ShadowEquals
+
+
+C_MarubozuShadowPercent = 5.0
+C_Marubozu = C_LongBody and C_UpShadow <= C_MarubozuShadowPercent/100*C_Body and C_DnShadow <= C_MarubozuShadowPercent/100*C_Body
+C_MarubozuWhite = C_Marubozu and C_WhiteBody
+C_MarubozuBlack = C_Marubozu and C_BlackBody
+
+
+
+/////////////////////////// Bearish - Abandoned Baby  ///////////////////////////
+C_bear_oAbandonedBaby_P = 0
+C_bear_oAbandonedBaby = C_UpTrend[2] and C_WhiteBody[2] and C_IsDojiBody[1] and high[2] < low[1] and C_BlackBody and low[1] > high
+if C_bear_oAbandonedBaby == true
+    C_bear_oAbandonedBaby_P := 2
+
+
+/////////////////////////// Bearish - Engulfing  ///////////////////////////
+C_bear_oEngulfing_P = 0
+C_bear_oEngulfing = C_UpTrend and C_BlackBody and C_LongBody and C_WhiteBody[1] and C_SmallBody[1] and close <= open[1] and open >= close[1] and ( close < open[1] or open > close[1] )
+if C_bear_oEngulfing == true
+    C_bear_oEngulfing_P := 2
+
+
+///////////////////////////  Bearish - Evening Star  ///////////////////////////
+C_oEveningStar_P = 0
+C_oEveningStar = false
+if C_LongBody[2] and C_SmallBody[1] and C_LongBody
+    if C_UpTrend and C_WhiteBody[2] and C_BodyLo[1] > C_BodyHi[2] and C_BlackBody and C_BodyLo <= C_BodyMiddle[2] and C_BodyLo > C_BodyLo[2] and C_BodyLo[1] > C_BodyHi
+        C_oEveningStar := true
+        C_oEveningStar_P := 3
+
+
+
+/////////////////////////// Bearish - Gravestone Doji  ///////////////////////////
+C_GravestoneDoji_P = 0
+C_GravestoneDoji = C_IsDojiBody and C_DnShadow <= C_Body
+if C_GravestoneDoji == true
+    C_GravestoneDoji_P := 1
+
+	
+/////////////////////////// Bearish - Hanging Man  ///////////////////////////
+C_oHangingMan_P = 0
+C_oHangingMan = false
+if C_SmallBody and C_Body > 0 and C_BodyLo > hl2 and C_DnShadow >= C_Factor * C_Body and not C_HasUpShadow
+	if C_UpTrend
+	    C_oHangingMan := true
+	    C_oHangingMan_P := 1
+
+	
+///////////////////////////  Bearish - Harami  ///////////////////////////
+C_bear_Harami_P = 0
+C_bear_Harami = C_LongBody[1] and C_WhiteBody[1] and C_UpTrend[1] and C_IsDojiBody and C_IsInsideBar
+if C_bear_Harami == true
+    C_bear_Harami := 1
+	
+///////////////////////////  Bearish - Kicking  ///////////////////////////
+C_bear_Kicking_P = 0
+C_bear_Kicking = C_MarubozuWhite[1] and C_MarubozuBlack and low[1] > high
+if C_bear_Kicking == true
+    C_bear_Kicking := 1
+	
+///////////////////////////  Bearish - Long Upper Shadow  ///////////////////////////
+C_LongShadowPercent = 75.0
+C_LongUpperShadow_P = 0
+C_LongUpperShadow = C_UpShadow > C_Range/100*C_LongShadowPercent
+if C_LongUpperShadow == true
+    C_LongUpperShadow_P := 1
+
+	
+///////////////////////////  Bearish - Marubozu Black  ///////////////////////////
+MarubozuBlackBearishNumberOfCandles = 1
+C_MarubozuShadowPercentBearish = 5.0
+C_MarubozuBlackBearish_P = 0
+C_MarubozuBlackBearish = C_BlackBody and C_LongBody and C_UpShadow <= C_MarubozuShadowPercentBearish/100*C_Body and C_DnShadow <= C_MarubozuShadowPercentBearish/100*C_Body and C_BlackBody
+if C_MarubozuBlackBearish == true
+    C_MarubozuBlackBearish_P := 3
+
+
+///////////////////////////  Bearish - Shooting Star  ///////////////////////////
+C_oShootingStar = false
+C_oShootingStar_P = 0
+if C_SmallBody and C_Body > 0 and C_BodyHi < hl2 and C_UpShadow >= C_Factor * C_Body and not C_HasDnShadow
+	if C_UpTrend
+	    C_oShootingStar := true
+	    C_oShootingStar_P := 1
+
+///////////////////////////  Bearish - Three Black Crows  ///////////////////////////
+C_3BCrw_ShadowPercent = 5.0
+C_3BCrw_HaveNotDnShadow = C_Range * C_3BCrw_ShadowPercent / 100 > C_DnShadow
+C_oThreeBlackCrows_P = 0
+
+C_oThreeBlackCrows = false
+if C_LongBody and C_LongBody[1] and C_LongBody[2]
+    if C_BlackBody and C_BlackBody[1] and C_BlackBody[2]
+        C_oThreeBlackCrows := close < close[1] and close[1] < close[2] and open > close[1] and open < open[1] and open[1] > close[2] and open[1] < open[2] and C_3BCrw_HaveNotDnShadow and C_3BCrw_HaveNotDnShadow[1] and C_3BCrw_HaveNotDnShadow[2]
+        C_oThreeBlackCrows_P := 3
+
+///////////////////////////  Bearish - Tri-Star  ///////////////////////////
+C_3Dojis = C_Doji[2] and C_Doji[1] and C_Doji
+C_BodyGapUp = C_BodyHi[1] < C_BodyLo
+C_BodyGapDn = C_BodyLo[1] > C_BodyHi
+C_bear_TriStar_P = 0
+C_bear_TriStar = C_3Dojis and C_UpTrend[2] and C_BodyGapUp[1] and C_BodyGapDn
+if C_bear_TriStar == true
+    C_bear_TriStar_P := 1 // Very weak
+
+
+///////////////////////////  Bullish - Abandoned Baby   ///////////////////////////
+C_bull_oAbandonedBaby_P = 0
+C_bull_oAbandonedBaby = C_DownTrend[2] and C_BlackBody[2] and C_IsDojiBody[1] and low[2] > high[1] and C_WhiteBody and high[1] < low
+if C_bull_oAbandonedBaby == true
+    C_bull_oAbandonedBaby_P := 2
+	
+///////////////////////////  Bullish - Dragonfly Doji  ///////////////////////////
+C_DragonflyDoji_P = 0
+C_DragonflyDoji = C_IsDojiBody and C_UpShadow <= C_Body
+if C_DragonflyDoji == true
+    C_DragonflyDoji_P := 1
+	
+///////////////////////////  Bullish - Engulfing   ///////////////////////////
+C_bull_oEngulfing_P = 0
+C_bull_oEngulfing = C_DownTrend and C_WhiteBody and C_LongBody and C_BlackBody[1] and C_SmallBody[1] and close >= open[1] and open <= close[1] and ( close > open[1] or open < close[1] )
+if C_bull_oEngulfing == true
+    C_bull_oEngulfing_P := 2
+
+	
+///////////////////////////  Bullish - Hammer   ///////////////////////////
+C_oHammer = false
+C_oHammer_P = 0
+if C_SmallBody and C_Body > 0 and C_BodyLo > hl2 and C_DnShadow >= C_Factor * C_Body and not C_HasUpShadow
+    if C_DownTrend
+        C_oHammer := true
+        C_oHammer_P := 1
+
+///////////////////////////  Bullish - Harami   ///////////////////////////
+C_bull_Harami_P = 0
+C_bull_Harami = C_LongBody[1] and C_BlackBody[1] and C_DownTrend[1] and C_IsDojiBody and C_IsInsideBar
+if C_bull_Harami == true
+    C_bull_Harami_P := 1
+
+///////////////////////////  Bullish - Inverted Hammer   ///////////////////////////
+C_oInvertedHammer = false
+C_oInvertedHammer_P = 0
+if C_SmallBody and C_Body > 0 and C_BodyHi < hl2 and C_UpShadow >= C_Factor * C_Body and not C_HasDnShadow
+    if C_DownTrend
+        C_oInvertedHammer := true
+        C_oInvertedHammer_P := 1
+	
+///////////////////////////  Bullish - Kicking   ///////////////////////////
+C_bull_Kicking_P = 0
+C_bull_Kicking = C_MarubozuBlack[1] and C_MarubozuWhite and high[1] < low
+if C_bull_Kicking == true
+    C_bull_Kicking_P := 1
+	
+///////////////////////////  Bullish - Long Lower Shadow   ///////////////////////////
+C_LongLowerShadow_P = 0
+C_LongLowerShadow = C_DnShadow > C_Range/100*C_LongShadowPercent
+if C_LongLowerShadow == true
+    C_LongLowerShadow_P := 1
+	
+///////////////////////////  Bullish - Marubozu White   ///////////////////////////
+arubozuWhiteBullishNumberOfCandles = 1
+C_MarubozuShadowPercentWhite = 5.0
+C_MarubozuWhiteBullish_P = 0
+C_MarubozuWhiteBullish = C_WhiteBody and C_LongBody and C_UpShadow <= C_MarubozuShadowPercentWhite/100*C_Body and C_DnShadow <= C_MarubozuShadowPercentWhite/100*C_Body and C_WhiteBody
+if C_MarubozuWhiteBullish == true
+    C_MarubozuWhiteBullish_P := 3
+
+	
+///////////////////////////  Bullish - Morning Star   ///////////////////////////
+
+C_oMorningStar = false
+C_oMorningStar_P = 0
+if C_LongBody[2] and C_SmallBody[1] and C_LongBody
+    if C_DownTrend and C_BlackBody[2] and C_BodyHi[1] < C_BodyLo[2] and C_WhiteBody and C_BodyHi >= C_BodyMiddle[2] and C_BodyHi < C_BodyHi[2] and C_BodyHi[1] < C_BodyLo
+        C_oMorningStar := true
+        C_oMorningStar_P := 3
+
+///////////////////////////  Bullish - Three White Soldiers   ///////////////////////////
+C_3WSld_ShadowPercent = 5.0
+C_3WSld_HaveNotUpShadow = C_Range * C_3WSld_ShadowPercent / 100 > C_UpShadow
+C_oThreeWhiteSoldiers_P = 0
+
+C_oThreeWhiteSoldiers = false
+if C_LongBody and C_LongBody[1] and C_LongBody[2]
+    if C_WhiteBody and C_WhiteBody[1] and C_WhiteBody[2]
+        C_oThreeWhiteSoldiers := close > close[1] and close[1] > close[2] and open < close[1] and open > open[1] and open[1] < close[2] and open[1] > open[2] and C_3WSld_HaveNotUpShadow and C_3WSld_HaveNotUpShadow[1] and C_3WSld_HaveNotUpShadow[2]
+        C_oThreeWhiteSoldiers_P := 3
+
+///////////////////////////  Bullish - Tri-Star  ///////////////////////////
+C_bull_TriStar_P = 0
+C_bull_TriStar = C_3Dojis and C_DownTrend[2] and C_BodyGapDn[1] and C_BodyGapUp
+if C_bull_TriStar == true
+    C_bull_TriStar_P := 1 // Very weak
+
+    
+///////////////////////////  Neutral Doji  ///////////////////////////
+C_NeutralDoji_P = 1
+C_NeutralDoji = C_IsDojiBody and C_ShadowEquals
+if C_NeutralDoji == true
+    C_NeutralDoji_P := 1
+
+	
+///////////////////////////  Neutral Spinning Top Black  ///////////////////////////
+C_SpinningTopPercent = 34.0
+C_SpinningTopBlack_P = 0
+C_IsSpinningTop = C_DnShadow >= C_Range / 100 * C_SpinningTopPercent and C_UpShadow >= C_Range / 100 * C_SpinningTopPercent and not C_IsDojiBody
+C_SpinningTopBlack = C_IsSpinningTop and C_BlackBody
+if C_SpinningTopBlack == true
+    C_SpinningTopBlack := 2
+
+    
+/////////////////////////// Neutral Falling Three Method ///////////////////////////
+C_FallingThreeMethodsBearishNumberOfCandles = 5
+C_FallingThreeMethodsBearish = false
+C_FallingThreeMethodsBearish_P = 0
+if C_DownTrend[4] and (C_LongBody[4] and C_BlackBody[4]) and (C_SmallBody[3] and C_WhiteBody[3] and open[3]>low[4] and close[3]<high[4]) and (C_SmallBody[2] and C_WhiteBody[2] and open[2]>low[4] and close[2]<high[4]) and (C_SmallBody[1] and C_WhiteBody[1] and open[1]>low[4] and close[1]<high[4]) and (C_LongBody and C_BlackBody and close<close[4])
+	C_FallingThreeMethodsBearish := true
+	C_FallingThreeMethodsBearish_P := 2
+
+    
+/////////////////////////// Neutral Rising Three Method ///////////////////////////
+C_RisingThreeMethodsBullishNumberOfCandles = 5
+C_RisingThreeMethodsBullish = false
+C_RisingThreeMethodsBullish_P = 0
+if C_UpTrend[4] and (C_LongBody[4] and C_WhiteBody[4]) and (C_SmallBody[3] and C_BlackBody[3] and open[3]<high[4] and close[3]>low[4]) and (C_SmallBody[2] and C_BlackBody[2] and open[2]<high[4] and close[2]>low[4]) and (C_SmallBody[1] and C_BlackBody[1] and open[1]<high[4] and close[1]>low[4]) and (C_LongBody and C_WhiteBody and close>close[4])
+	C_RisingThreeMethodsBullish := true
+	C_RisingThreeMethodsBullish_P := 2
+
+
+    
+//Plot as single EMA
+showEMA = input(title="Show EMA lines", type=input.bool, defval=true)
+// length = input(title="EMA length", type=input.integer, defval=50)
+// emaFilter = ema(close, length)
+// EMA = showEMA == true ? emaFilter : na
+//plot(EMA, title="EMA", color=color.new(color.blue,0), linewidth=1)
+
+
+// Inputs
+fast = input(title="Fast EMA", type=input.integer, defval=12)
+slow = input(title="Slow EMA", type=input.integer, defval=26)
+
+//Set conditions
+emafast = ema(close, fast)
+emaslow = ema(close, slow)
+
+FastEMA = showEMA == true ? emafast : na
+SlowEMA = showEMA == true ? emaslow : na
+
+plot(FastEMA, title="EMA Fast", linewidth=1, color=color.new(color.blue, 0))
+plot(SlowEMA, title="EMA Slow", linewidth=1, color=color.new(color.orange, 0))
+
+///Parabolic SAR
+showPSAR = input(false, "Show Parabolic SAR")
+start = input(0.02)
+increment = input(0.02)
+maximum = input(0.2, "Max Value")
+psar = sar(start, increment, maximum)
+PSAR = showPSAR == true ? psar : na
+plot(PSAR, "ParabolicSAR", style=plot.style_cross, color=#2962FF)
+
+/// MACD ///
+// inputs
+len = input(60, minval=1, title="Length EMA")
+src = input(close, title="Source")
+out = ema(src, len)
+fast_length = input(title="Fast Length MACD", type=input.integer, defval=12)
+slow_length = input(title="Slow Length MACD", type=input.integer, defval=26)
+signal_length = input(title="Signal Smoothing", type=input.integer, minval = 1, maxval = 50, defval = 9)
+sma_source = input(title="Oscillator MA Type MACD", type=input.string, defval="EMA", options=["SMA", "EMA"])
+sma_signal = input(title="Signal Line MA Type MACD", type=input.string, defval="EMA", options=["SMA", "EMA"])
+
+// Calculating
+fast_ma = sma_source == "SMA" ? sma(src, fast_length) : ema(src, fast_length)
+slow_ma = sma_source == "SMA" ? sma(src, slow_length) : ema(src, slow_length)
+macd = fast_ma - slow_ma
+signal = sma_signal == "SMA" ? sma(macd, signal_length) : ema(macd, signal_length)
+hist = macd - signal
+
+
+/// RSI ///
+RSIlen = input(title="RSI Length", type=input.integer, defval=14)
+r = rsi(close, RSIlen)
+
+// Chaikin Oscillator
+short = input(3, minval=1, title="Chaikin Fast Length")
+long = input(10, minval=1, title="Chaikin Slow Length")
+osc = ema(accdist, short) - ema(accdist, long)
+// plot(osc, title="Chaikin Oscillator", color=#EC407A)
+// hline(0, title="Zero", color=#787B86, linestyle=hline.style_dashed)
+
+longCond =  hist > 0 and r > 50 and emafast <= emaslow //and close > close[2] 
+shortCond = hist < 0 and r < 50 and emafast >= emaslow //and close < close[2]
+
+//Display trend Labels
+DisplayTrend = input(true, "Trend Detection (Bullish and Bearich)")
+DisplayTrend2 = input(false, "Trend Detection (Continuous)")
+PatternScore = input(title="Pattern score greater than and equal to:", defval=1, type=input.integer)
+
+BullishPat_P = C_bull_oAbandonedBaby_P + C_DragonflyDoji_P + C_bull_oEngulfing_P + C_oHammer_P + C_bull_Harami_P + C_oInvertedHammer_P + C_bull_Kicking_P + C_LongLowerShadow_P + C_MarubozuWhiteBullish_P + C_oMorningStar_P + C_oThreeWhiteSoldiers_P + C_bull_TriStar_P
+BullishPat = crossover(emafast, emaslow) or C_bull_oAbandonedBaby or C_DragonflyDoji or C_bull_oEngulfing or C_oHammer or C_bull_Harami or C_oInvertedHammer or C_bull_Kicking or C_LongLowerShadow or C_MarubozuWhiteBullish or C_oMorningStar or C_oThreeWhiteSoldiers or C_bull_TriStar or crossover(osc,0)
+
+BearichPat_P = C_bear_oAbandonedBaby_P + C_bear_oEngulfing_P + C_oEveningStar_P + C_GravestoneDoji_P + C_oHangingMan_P + C_bear_Harami_P + C_bear_Kicking_P + C_LongUpperShadow_P + C_MarubozuBlackBearish_P + C_oShootingStar_P + C_oThreeBlackCrows_P + C_bear_TriStar_P
+BearichPat = crossunder(emafast, emaslow) or C_bear_oAbandonedBaby or C_bear_oEngulfing or C_oEveningStar or C_GravestoneDoji or C_oHangingMan or C_bear_Harami or C_bear_Kicking or C_LongUpperShadow or C_MarubozuBlackBearish or C_oShootingStar or C_oThreeBlackCrows or C_bear_TriStar or crossunder(osc,0)
+
+ContinuousPat_P = C_NeutralDoji_P + C_SpinningTopBlack_P + C_FallingThreeMethodsBearish_P + C_RisingThreeMethodsBullish_P
+ContinuousPat = C_NeutralDoji or C_SpinningTopBlack or C_FallingThreeMethodsBearish or C_RisingThreeMethodsBullish
+
+
+uptrendSig = (psar >= close) and BullishPat  and BullishPat_P >= PatternScore and not ContinuousPat and longCond
+DowntrendSig = (psar <= close) and BearichPat  and BearichPat_P >= PatternScore and not ContinuousPat and shortCond
+// uptrendSig = (psar >= close) and BullishPat and (close < EMA) and not ContinuousPat and BullishPat_P >= PatternScore 
+// DowntrendSig = (psar <= close) and BearichPat and (close > EMA) and not ContinuousPat and BearichPat_P >= PatternScore 
+
+Uptr = DisplayTrend == true ? uptrendSig : na
+Dwtr = DisplayTrend == true ? DowntrendSig : na
+CPtr = DisplayTrend2 == true ? ContinuousPat : na
+
+if (uptrendSig and DisplayTrend)
+    UpLable = label.new(x=bar_index, y=na, text=tostring(BullishPat_P), yloc=yloc.belowbar, color=color.green, textcolor=color.white, style=label.style_label_up, size=size.normal)
+if (DowntrendSig and DisplayTrend)
+    UpLable = label.new(x=bar_index, y=na, text=tostring(BearichPat_P), yloc=yloc.abovebar, color=color.red, textcolor=color.white, style=label.style_label_down, size=size.normal)
+
+//uptext := uptext + BullishPat_P
+plotshape(Uptr, title="Uptrend", style=shape.triangleup, location=location.belowbar, color=color.new(color.green,0), size=size.small)
+plotshape(Dwtr, title="Downtrend", style=shape.triangledown, location=location.abovebar, color=color.new(color.red,0), size=size.small)
+plotshape(CPtr, title="Continuous", style=shape.triangleup, location=location.belowbar, color=color.new(color.purple,0), text="CP", size=size.small)
+
+//Execute trade when conditions are true
+if (uptrendSig and time_dtr) 
+    strategy.entry("Long", strategy.long)
+
+if (DowntrendSig and time_dtr) 
+    strategy.entry("Short", strategy.short)
+
+
+// Stop loss (ATR trail stop loss)
+lookback = input(title="How Far to Look back for High/Low:", type=input.integer, defval=7, minval=1)
+atr = atr(14)
+longStop = lowest(low, lookback) - atr
+shortStop = highest(high, lookback) + atr
+
+//Exit trade
+strategy.exit("Exit Long", "Long", stop = longStop)
+strategy.exit("Exit Short", "Short", stop = shortStop)

@@ -1,0 +1,91 @@
+indicator('Auto Grid Lines', shorttitle='AutoGridLines', overlay=true)
+iGI = input.float(1.5, 'Grid Interval(1.5%)', step=.25) / 100
+iGrids = input.int(5, 'Number of Grids', options=[2, 4, 5, 6, 8])
+iLen = input.int(10, 'Smoothing Length(10)', minval=1)
+iMA = input.string('ema', 'Smoothing Type', options=['lreg', 'sma', 'ema', 'vwma', 'tema'])
+iLZ = input.float(4.25, 'Laziness(4.25%)', step=.25) / 100
+iELSTX = input(0, 'Elasticity(50)')
+iGT = input.int(0, 'Grid Line Transparency(100 to hide)', minval=0, maxval=100)
+iFT = input.int(90, 'Fill Transparency(100 to hide)', minval=0, maxval=100)
+
+
+iRFC = input(false, 'Reverse Fill Colors')
+RedGrid = color.new(color.red, iGT)
+GreenGrid = color.new(color.green, iGT)
+Crimson = #DC143C
+LimeGreen = #32CD32
+NextUP = 0.0
+NextDN = 0.0
+LastSignal = 0
+LastSignal_Index = 0
+AP = 0.0
+G = iGrids
+Buy = false
+Sell = false
+UpperLimit = 0.0
+LowerLimit = 0.0
+SignalLine = 0.0
+CurrentGrid = 0.0
+BuyLine = 0.0
+SellLine = 0.0
+DIR = 0
+MeaningOfLife = 42
+lz(x, lzf) =>
+    LZ = 0.0
+    s = math.sign(x)
+    LZ := x == nz(x[1], x) ? x : x > nz(LZ[1] + lzf * LZ[1] * s, x) ? x : x < nz(LZ[1] - lzf * LZ[1] * s, x) ? x : LZ[1]
+    LZ
+LR = ta.linreg(close, iLen, 0)
+SMA = ta.sma(close, iLen)
+EMA = ta.ema(close, iLen)
+VWMA = ta.vwma(close, iLen)
+TEMA = ta.ema(ta.ema(ta.ema(close, iLen), iLen), iLen)
+MA = iMA == 'lreg' ? LR : iMA == 'sma' ? SMA : iMA == 'ema' ? EMA : iMA == 'vwma' ? VWMA : TEMA
+LMA = lz(MA, iLZ)
+ELSTX = syminfo.mintick * iELSTX
+
+AP := MA > LMA ? AP[1] + ELSTX : MA < LMA ? AP[1] - ELSTX : AP[1]
+AP := AP >= NextUP[1] ? NextUP[1] : AP
+AP := AP <= NextDN[1] ? NextDN[1] : AP
+AP := LMA != LMA[1] ? LMA : AP
+NextUP := LMA != LMA[1] ? LMA + LMA * iGI : NextUP[1]
+NextDN := LMA != LMA[1] ? LMA - LMA * iGI : NextDN[1]
+GI = AP * iGI
+a_grid = array.new_float(9)
+for x = -4 to 4 by 1
+    array.set(a_grid, x + 4, AP + GI * x)
+Get_Array_Values(ArrayName, index) =>
+    value = array.get(ArrayName, index)
+    value
+G0 = Get_Array_Values(a_grid, 0) 
+G1 = Get_Array_Values(a_grid, 1) 
+G2 = Get_Array_Values(a_grid, 2)  
+G3 = Get_Array_Values(a_grid, 3)  
+G4 = Get_Array_Values(a_grid, 4)  
+G5 = Get_Array_Values(a_grid, 5)  
+G6 = Get_Array_Values(a_grid, 6) 
+G7 = Get_Array_Values(a_grid, 7)  
+G8 = Get_Array_Values(a_grid, 8) 
+UpperLimit := G >= 8 ? G8 : G >= 6 ? G7 : G >= 4 ? G6 : G5
+LowerLimit := G >= 8 ? G0 : G >= 6 ? G1 : G >= 4 ? G2 : G3
+color apColor = na
+apColor := MA < AP ? color.new(color.red, iGT) : MA > AP ? color.new(color.green, iGT) : apColor[1]
+apColor := LMA != LMA[1] ? na : apColor
+plot(G >= 8 ? G0 : na, color=GreenGrid, show_last=2016)
+plot(G >= 6 ? G1 : na, color=GreenGrid, show_last=2016)
+plot(G >= 4 ? G2 : na, color=GreenGrid, show_last=2016)
+plot(G >= 2 ? G3 : na, color=GreenGrid, show_last=2016)
+plot(G4, color=apColor, linewidth=4, show_last=2016)
+plot(G >= 2 ? G5 : na, color=RedGrid, show_last=2016)
+plot(G >= 4 ? G6 : na, color=RedGrid, show_last=2016)
+plot(G >= 6 ? G7 : na, color=RedGrid, show_last=2016)
+plot(G >= 8 ? G8 : na, color=RedGrid, show_last=2016)
+LineAbove = SignalLine == UpperLimit ? SignalLine : SignalLine + GI
+LineBelow = SignalLine == LowerLimit ? SignalLine : SignalLine - GI
+a = plot(LineAbove, color=color.new(color.red, 100), style=plot.style_circles)
+b = plot(LineBelow, color=color.new(color.green, 100), style=plot.style_circles)
+boxColor = LastSignal == 1 ? color.new(color.green, iFT) : color.new(color.red, iFT)
+if iRFC
+    boxColor := LastSignal == -1 ? color.new(color.green, iFT) : color.new(color.red, iFT)
+    boxColor
+fill(a, b, color=boxColor)
